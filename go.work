@@ -1,6 +1,9 @@
-go 1.26.0
+go 1.26.2
 
 use (
-    ./infra/database
-    ./infra/gateway
+	./infra/database
+	./infra/gateway
+	./infra/modules/nats-go
+	./infra/modules/utils-go
+	./infra/services/health
 )

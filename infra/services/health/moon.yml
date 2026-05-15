@@ -1,0 +1,33 @@
+project:
+  name: app-health-service
+  description: Health service for the app
+
+dependsOn:
+  - nats-go
+  - db
+
+tasks:
+  compile:
+    type: build
+    command: go build -o build/app-health-service
+    outputs:
+      - build/app-health-service
+    toolchain:
+      - go
+    inputs:
+      - go.*
+      - '/**/*.go'
+
+  build:
+    type: build
+    deps:
+      - db:build
+      - ~:compile
+    options:
+      runInCI: false
+
+  start:
+    type: run
+    command: build/app-health-service
+    inputs:
+      - build/app-health-service

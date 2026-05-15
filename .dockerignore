@@ -1,0 +1,10 @@
+.moon/cache
+.moon/docker
+.git
+node_modules
+build
+dist
+.cache
+tmp
+coverage
+.trash

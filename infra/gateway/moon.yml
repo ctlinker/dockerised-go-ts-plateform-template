@@ -1,0 +1,34 @@
+project:
+  name: app-gateway
+  description: Gateway service for the app
+
+dependsOn:
+  - db
+  - nats-go
+
+tasks:
+  compile:
+    type: build
+    command: go build -o build/gateway
+    outputs:
+      - build/gateway
+    toolchain:
+      - go
+    inputs:
+      - '/**/*.go'
+      - 'go.mod'
+      - 'go.sum'
+
+  build:
+    type: build
+    deps:
+      - db:build
+      - ~:compile
+    options:
+      runInCI: false
+
+  start:
+    type: run
+    command: build/gateway
+    inputs:
+      - build/gateway

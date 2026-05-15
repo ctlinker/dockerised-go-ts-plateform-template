@@ -1,0 +1,14 @@
+project:
+  name: utils-go
+  description: Go utilities and helpers for the docker-goty-template project
+
+layer: library
+language: go
+
+tasks:
+  test:
+    type: test
+    command: go test ./...
+    inputs:
+      - '**/*.go'
+      - 'go.mod'

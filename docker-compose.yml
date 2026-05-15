@@ -1,0 +1,74 @@
+name: root
+services:
+  toolchain-go:
+    build:
+      context: .
+      dockerfile: tooling/images/toolchain-go.Dockerfile
+    image: tooling:go
+
+  toolchain-base:
+    build:
+      context: .
+      dockerfile: tooling/images/toolchain-base.Dockerfile
+    image: tooling:base
+
+  runtime-slim:
+    build:
+      context: .
+      dockerfile: tooling/images/runtime-slim.Dockerfile
+    image: runtime:slim
+
+  db:
+    image: postgres:16-alpine
+    container_name: repo-db
+    environment:
+      POSTGRES_USER: ${DATABASE_USER:-postgres}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-password}
+      POSTGRES_DB: ${DATABASE_NAME:-repo}
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -U ${DATABASE_USER:-postgres} -d ${DATABASE_NAME:-repo}',
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  nats:
+    image: nats:2.14.0-alpine
+    container_name: repo-nats
+    ports:
+      - '4222:4222' # Client Port
+      - '8222:8222' # Monitoring Port
+
+  gateway:
+    build:
+      context: .
+      dockerfile: infra/gateway/Dockerfile
+    container_name: repo-gateway
+    environment:
+      - NATS_URL=nats://nats:4222
+      - NATS_CLIENT_NAME=gateway
+    ports:
+      - '8080:8080'
+    depends_on:
+      - nats
+
+  health-service:
+    build:
+      context: .
+      dockerfile: infra/services/health/Dockerfile
+    container_name: repo-health
+    environment:
+      - NATS_URL=nats://nats:4222
+      - NATS_CLIENT_NAME=health-service
+    depends_on:
+      - nats
+
+volumes:
+  postgres_data:

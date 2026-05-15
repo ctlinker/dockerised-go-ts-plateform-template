@@ -5,14 +5,32 @@ project:
 layer: scaffolding
 
 tasks:
+  get-project-manifest:
+    type: run
+    command: bash -c ./tooling/scripts/get-project-manifest.sh
+
   build-all:
     type: build
     command: moon run :build
+    inputs:
+      - ./**/*
 
   test-all:
     type: build
     command: moon run :test
 
-  setup-project:
+  pnpm-install:
+    type: run
+    command: pnpm install -r
+
+  go-sync:
+    type: run
+    command: go work sync
+
+  setup-toolchain:
     type: run
     command: moon setup
+
+  setup:
+    type: run
+    command: moon run repo:setup-toolchain repo:pnpm-install repo:go-sync

@@ -4,32 +4,33 @@ project:
 
 language: go
 
-layer: library
+dependsOn:
+  - repo
 
 tasks:
   # Generate Go code from SQL using sqlc
   generate:
     type: build
-    command: "go tool sqlc generate"
+    command: 'go tool sqlc generate'
     toolchains:
       - go
     inputs:
-      - "schema.sql"
-      - "queries.sql"
-      - "sqlc.yaml"
+      - 'sequel/schema.sql'
+      - 'sequel/queries.sql'
+      - 'sqlc.yaml'
     outputs:
-      - "schema/"
+      - 'schema/'
 
   # Create a new versioned migration by diffing schema.sql against migrations/
   migrate-diff:
     type: build
-    command: 'atlas migrate diff --to "file://schema.sql" --dev-url "docker://postgres/16/dev"'
+    command: 'atlas migrate diff --to "file://sequel/schema.sql" --dev-url "docker://postgres/16/dev"'
     inputs:
-      - "schema.sql"
+      - 'sequel/schema.sql'
     toolchain:
       - system
     outputs:
-      - "migrations/"
+      - 'migrations/'
 
   # Apply migrations to a database (defaults to localhost)
   migrate-apply:
@@ -39,14 +40,18 @@ tasks:
   # Check SQL queries for correctness
   check:
     type: run
-    command: "go tool sqlc compile"
+    command: 'sqlc compile'
     toolchains:
-      - go
+      - system
     inputs:
-      - "schema.sql"
-      - "queries.sql"
+      - 'sequel/schema.sql'
+      - 'sequel/queries.sql'
 
   # Aggregate build task
   build:
     type: build
-    command: "moon run db:generate db:migrate-diff db:check"
+    deps:
+      - ~:generate
+      - ~:check
+    options:
+      runInCI: false

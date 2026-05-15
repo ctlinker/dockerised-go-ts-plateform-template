@@ -1,0 +1,15 @@
+project:
+  name: nats-go
+  description: NATS Go client library
+
+layer: library
+language: go
+
+tasks:
+  test:
+    type: test
+    command: go test ./...
+    inputs:
+      - '**/*.go'
+      - 'go.mod'
+      - 'go.sum'
