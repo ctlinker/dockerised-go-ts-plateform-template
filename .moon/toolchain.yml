@@ -1,0 +1,8 @@
+bun:
+  versionFromPrototools: "bun"
+
+node:
+  versionFromPrototools: "nodejs"
+
+go:
+  versionFromPrototools: "go"

@@ -1,0 +1,52 @@
+project:
+  name: repo/database
+  description: database for the no-stress client apps
+
+language: go
+
+layer: library
+
+tasks:
+  # Generate Go code from SQL using sqlc
+  generate:
+    type: build
+    command: "go tool sqlc generate"
+    toolchains:
+      - go
+    inputs:
+      - "schema.sql"
+      - "queries.sql"
+      - "sqlc.yaml"
+    outputs:
+      - "schema/"
+
+  # Create a new versioned migration by diffing schema.sql against migrations/
+  migrate-diff:
+    type: build
+    command: 'atlas migrate diff --to "file://schema.sql" --dev-url "docker://postgres/16/dev"'
+    inputs:
+      - "schema.sql"
+    toolchain:
+      - system
+    outputs:
+      - "migrations/"
+
+  # Apply migrations to a database (defaults to localhost)
+  migrate-apply:
+    type: run
+    command: 'atlas migrate apply --url "postgres://postgres:password@localhost:5432/nostress?sslmode=disable" --dir "file://migrations"'
+
+  # Check SQL queries for correctness
+  check:
+    type: run
+    command: "go tool sqlc compile"
+    toolchains:
+      - go
+    inputs:
+      - "schema.sql"
+      - "queries.sql"
+
+  # Aggregate build task
+  build:
+    type: build
+    command: "moon run db:generate db:migrate-diff db:check"

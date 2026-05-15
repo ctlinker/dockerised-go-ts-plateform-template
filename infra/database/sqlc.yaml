@@ -1,0 +1,10 @@
+version: '2'
+sql:
+  - strict_function_checks: true
+    engine: postgresql
+    schema: 'sequel/schema.sql'
+    queries: 'sequel/queries.sql'
+    gen:
+      go:
+        package: schema
+        out: schema

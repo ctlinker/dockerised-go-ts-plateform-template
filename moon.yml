@@ -1,0 +1,18 @@
+project:
+  name: your-project
+  description: template description
+
+layer: scaffolding
+
+tasks:
+  build-all:
+    type: build
+    command: moon run :build
+
+  test-all:
+    type: build
+    command: moon run :test
+
+  setup-project:
+    type: run
+    command: moon setup
