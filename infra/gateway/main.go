@@ -12,6 +12,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/nats-io/nats.go"
 )
 
 type HealthRequest struct{}
@@ -28,6 +29,12 @@ func main() {
 		log.Fatalf("Failed to connect to NATS: %v", err)
 	}
 	defer natsClient.Close()
+
+	// Initialize KV for checking banned tokens
+	kv, err := natsClient.GetKV("banned_tokens")
+	if err != nil {
+		log.Printf("Warning: Failed to connect to banned_tokens KV: %v. Denylist check will be skipped.", err)
+	}
 
 	r := chi.NewRouter()
 
@@ -128,7 +135,7 @@ func main() {
 	// Protected Routes
 	r.Group(func(r chi.Router) {
 		authConf := env.LoadAuthConfig()
-		r.Use(AuthMiddleware(authConf.JWT_ACCESS_SECRET))
+		r.Use(AuthMiddleware(authConf.JWT_ACCESS_SECRET, kv))
 
 		r.Get("/me", func(w http.ResponseWriter, r *http.Request) {
 			userID := r.Context().Value("user_id")
@@ -170,7 +177,7 @@ func main() {
 	}
 }
 
-func AuthMiddleware(secret string) func(http.Handler) http.Handler {
+func AuthMiddleware(secret string, kv nats.KeyValue) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			authHeader := r.Header.Get("Authorization")
@@ -180,6 +187,16 @@ func AuthMiddleware(secret string) func(http.Handler) http.Handler {
 			}
 
 			tokenString := authHeader[7:]
+
+			// CHECK THE DENYLIST (NATS KV)
+			if kv != nil {
+				entry, err := kv.Get(tokenString)
+				if err == nil && entry != nil {
+					http.Error(w, "Unauthorized: Token has been revoked (logged out)", http.StatusUnauthorized)
+					return
+				}
+			}
+
 			claims, err := jwt.ValidateToken(tokenString, secret)
 			if err != nil {
 				http.Error(w, "Unauthorized: "+err.Error(), http.StatusUnauthorized)

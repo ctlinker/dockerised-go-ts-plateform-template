@@ -59,6 +59,28 @@ func (c *Client) Conn() *nats.Conn {
 	return c.nc
 }
 
+// JetStream returns a JetStream context.
+func (c *Client) JetStream() (nats.JetStreamContext, error) {
+	return c.nc.JetStream()
+}
+
+// GetKV returns a Key-Value bucket.
+func (c *Client) GetKV(bucket string) (nats.KeyValue, error) {
+	js, err := c.JetStream()
+	if err != nil {
+		return nil, err
+	}
+	kv, err := js.KeyValue(bucket)
+	if err != nil {
+		// Try to create it if it doesn't exist
+		kv, err = js.CreateKeyValue(&nats.KeyValueConfig{
+			Bucket: bucket,
+			TTL:    24 * time.Hour, // Default TTL for banned tokens
+		})
+	}
+	return kv, err
+}
+
 // Request sends a request and unmarshals the response.
 func Request[Req any, Resp any](ctx context.Context, c *Client, subject string, req Req) (Resp, error) {
 	var resp Resp

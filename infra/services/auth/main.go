@@ -14,6 +14,8 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/nats-io/nats.go"
 )
 
 type RegisterRequest struct {
@@ -56,12 +58,18 @@ func main() {
 	}
 	defer client.Close()
 
-	// 3. Register Handlers
-	setupHandlers(client, db, authConf)
+	// 3. Initialize KV store for banned tokens
+	kv, err := client.GetKV("banned_tokens")
+	if err != nil {
+		log.Fatalf("Failed to initialize NATS KV: %v", err)
+	}
+
+	// 4. Register Handlers
+	setupHandlers(client, db, authConf, kv)
 
 	log.Println("Auth service is running...")
 
-	// 4. Graceful Shutdown
+	// 5. Graceful Shutdown
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	<-sigChan
@@ -69,7 +77,7 @@ func main() {
 	log.Println("Shutting down auth service")
 }
 
-func setupHandlers(nc *natsgo.Client, db *database.DB, authConf env.AuthConfig) {
+func setupHandlers(nc *natsgo.Client, db *database.DB, authConf env.AuthConfig, kv nats.KeyValue) {
 	// Register Handler
 	natsgo.Respond(nc, "auth.register", "auth-service-group", func(ctx context.Context, req RegisterRequest) (AuthResponse, error) {
 		// Check if user exists
@@ -177,9 +185,18 @@ func setupHandlers(nc *natsgo.Client, db *database.DB, authConf env.AuthConfig) 
 
 	// Logout Handler
 	natsgo.Respond(nc, "auth.logout", "auth-service-group", func(ctx context.Context, req LogoutRequest) (AuthResponse, error) {
-		// Mark session as deleted based on access token
+		// 1. Mark session as deleted in DB
 		err := db.SoftDeleteSessionByTokenHash(ctx, req.AccessToken)
 		if err != nil {
+			log.Printf("DB Logout failed: %v", err)
+		}
+
+		// 2. Add Access Token to NATS KV Banned List
+		// We use the token itself as the key (or a hash if you prefer)
+		// This will block the token immediately in the Gateway
+		_, err = kv.PutString(req.AccessToken, "banned")
+		if err != nil {
+			log.Printf("Failed to blacklist token in NATS KV: %v", err)
 			return AuthResponse{Success: false, Message: "Failed to logout"}, err
 		}
 
