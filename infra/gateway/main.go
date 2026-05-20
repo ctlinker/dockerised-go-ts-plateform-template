@@ -101,6 +101,28 @@ func main() {
 		json.NewEncoder(w).Encode(resp)
 	})
 
+	r.Post("/refresh", func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			RefreshToken string `json:"refresh_token"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+
+		resp, err := natsgo.Request[any, any](ctx, natsClient, "auth.refresh", req)
+		if err != nil {
+			http.Error(w, "Auth service unavailable", http.StatusServiceUnavailable)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	})
+
 	log.Println("Gateway starting on :8080")
 	if err := http.ListenAndServe(":8080", r); err != nil {
 		log.Fatalf("Gateway failed to start: %v", err)

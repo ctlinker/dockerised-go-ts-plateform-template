@@ -8,6 +8,7 @@ import (
 	"app-utils-go/jwt"
 	"app-utils-go/password"
 	"context"
+	"database/sql"
 	"log"
 	"os"
 	"os/signal"
@@ -26,10 +27,15 @@ type LoginRequest struct {
 	Password string `json:"password"`
 }
 
+type RefreshRequest struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
 type AuthResponse struct {
-	Success bool   `json:"success"`
-	Message string `json:"message"`
-	Token   string `json:"token,omitempty"`
+	Success      bool   `json:"success"`
+	Message      string `json:"message"`
+	AccessToken  string `json:"access_token,omitempty"`
+	RefreshToken string `json:"refresh_token,omitempty"`
 }
 
 func main() {
@@ -98,17 +104,70 @@ func setupHandlers(nc *natsgo.Client, db *database.DB, authConf env.AuthConfig) 
 			return AuthResponse{Success: false, Message: "Invalid credentials"}, nil
 		}
 
-		// Generate JWT
-		token, err := jwt.GenerateToken(user.ID, user.Email, authConf.JWT_ACCESS_SECRET, 24*time.Hour)
+		// 1. Generate Access Token (Short-lived: 15 mins)
+		accessToken, err := jwt.GenerateToken(user.ID, user.Email, authConf.JWT_ACCESS_SECRET, 15*time.Minute)
 		if err != nil {
-			log.Printf("Failed to generate token: %v", err)
+			log.Printf("Failed to generate access token: %v", err)
 			return AuthResponse{Success: false, Message: "Internal error"}, err
 		}
 
+		// 2. Generate Refresh Token (Long-lived: 7 days)
+		refreshToken, err := jwt.GenerateToken(user.ID, user.Email, authConf.JWT_REFRESH_SECRET, 7*24*time.Hour)
+		if err != nil {
+			log.Printf("Failed to generate refresh token: %v", err)
+			return AuthResponse{Success: false, Message: "Internal error"}, err
+		}
+
+		// 3. Store Session in DB
+		_, err = db.CreateSession(ctx, schema.CreateSessionParams{
+			UserID:           user.ID,
+			TokenHash:        accessToken,
+			RefreshTokenHash: sql.NullString{String: refreshToken, Valid: true},
+			ExpiresAt:        time.Now().Add(7 * 24 * time.Hour),
+		})
+		if err != nil {
+			log.Printf("Failed to store session: %v", err)
+		}
+
 		return AuthResponse{
-			Success: true,
-			Message: "Logged in successfully",
-			Token:   token,
+			Success:      true,
+			Message:      "Logged in successfully",
+			AccessToken:  accessToken,
+			RefreshToken: refreshToken,
+		}, nil
+	})
+
+	// Refresh Token Handler
+	natsgo.Respond(nc, "auth.refresh", "auth-service-group", func(ctx context.Context, req RefreshRequest) (AuthResponse, error) {
+		// 1. Validate the refresh token
+		claims, err := jwt.ValidateToken(req.RefreshToken, authConf.JWT_REFRESH_SECRET)
+		if err != nil {
+			return AuthResponse{Success: false, Message: "Invalid refresh token"}, nil
+		}
+
+		// 2. Check if the session exists in DB and isn't revoked
+		session, err := db.GetSessionByRefreshTokenHash(ctx, sql.NullString{String: req.RefreshToken, Valid: true})
+		if err != nil {
+			return AuthResponse{Success: false, Message: "Session expired or revoked"}, nil
+		}
+
+		// 3. Generate new Access Token
+		newAccessToken, err := jwt.GenerateToken(claims.UserID, claims.Email, authConf.JWT_ACCESS_SECRET, 15*time.Minute)
+		if err != nil {
+			return AuthResponse{Success: false, Message: "Internal error"}, err
+		}
+
+		// 4. Update session with new access token hash
+		err = db.UpdateSessionTokenHash(ctx, schema.UpdateSessionTokenHashParams{
+			TokenHash:   session.TokenHash, // Old hash to find
+			TokenHash_2: newAccessToken,    // New hash to set
+		})
+
+		return AuthResponse{
+			Success:      true,
+			Message:      "Token refreshed successfully",
+			AccessToken:  newAccessToken,
+			RefreshToken: req.RefreshToken, // Keep using the same refresh token
 		}, nil
 	})
 }
