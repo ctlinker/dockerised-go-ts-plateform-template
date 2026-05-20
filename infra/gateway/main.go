@@ -2,6 +2,8 @@ package main
 
 import (
 	natsgo "app-nats-go"
+	"app-utils-go/env"
+	"app-utils-go/jwt"
 	"context"
 	"encoding/json"
 	"log"
@@ -123,8 +125,50 @@ func main() {
 		json.NewEncoder(w).Encode(resp)
 	})
 
+	// Protected Routes
+	r.Group(func(r chi.Router) {
+		authConf := env.LoadAuthConfig()
+		r.Use(AuthMiddleware(authConf.JWT_ACCESS_SECRET))
+
+		r.Get("/me", func(w http.ResponseWriter, r *http.Request) {
+			userID := r.Context().Value("user_id")
+			email := r.Context().Value("email")
+
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"user_id": userID,
+				"email":   email,
+			})
+		})
+	})
+
 	log.Println("Gateway starting on :8080")
 	if err := http.ListenAndServe(":8080", r); err != nil {
 		log.Fatalf("Gateway failed to start: %v", err)
+	}
+}
+
+func AuthMiddleware(secret string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			authHeader := r.Header.Get("Authorization")
+			if authHeader == "" || len(authHeader) < 8 || authHeader[:7] != "Bearer " {
+				http.Error(w, "Unauthorized: Missing or invalid token", http.StatusUnauthorized)
+				return
+			}
+
+			tokenString := authHeader[7:]
+			claims, err := jwt.ValidateToken(tokenString, secret)
+			if err != nil {
+				http.Error(w, "Unauthorized: "+err.Error(), http.StatusUnauthorized)
+				return
+			}
+
+			// Add claims to context
+			ctx := context.WithValue(r.Context(), "user_id", claims.UserID)
+			ctx = context.WithValue(ctx, "email", claims.Email)
+
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
 	}
 }
