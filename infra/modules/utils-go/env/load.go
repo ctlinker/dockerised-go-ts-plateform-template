@@ -34,6 +34,16 @@ func LoadAuthConfig() AuthConfig {
 	}
 }
 
+type GatewayConfig struct {
+	WS_SERVICE_URL string
+}
+
+func LoadGatewayConfig() GatewayConfig {
+	return GatewayConfig{
+		WS_SERVICE_URL: GetEnv("WS_SERVICE_URL", EnvDefault, "http://ws-service:8081"),
+	}
+}
+
 type Runtime string
 
 const (

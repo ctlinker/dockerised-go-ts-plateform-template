@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -36,6 +38,8 @@ func main() {
 		log.Printf("Warning: Failed to connect to banned_tokens KV: %v. Denylist check will be skipped.", err)
 	}
 
+	gatewayConf := env.LoadGatewayConfig()
+
 	r := chi.NewRouter()
 
 	// A good base middleware stack
@@ -46,6 +50,18 @@ func main() {
 
 	// Set a timeout value on the context of a request, to aid in closeing it net/http
 	r.Use(middleware.Timeout(60 * time.Second))
+
+	// WebSocket Proxy
+	wsURL, err := url.Parse(gatewayConf.WS_SERVICE_URL)
+	if err != nil {
+		log.Fatalf("Invalid WS_SERVICE_URL: %v", err)
+	}
+	wsProxy := httputil.NewSingleHostReverseProxy(wsURL)
+
+	r.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("Proxying WebSocket request to %s", gatewayConf.WS_SERVICE_URL)
+		wsProxy.ServeHTTP(w, r)
+	})
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
