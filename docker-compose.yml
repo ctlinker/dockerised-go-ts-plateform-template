@@ -54,8 +54,44 @@ services:
     environment:
       - NATS_URL=nats://nats:4222
       - NATS_CLIENT_NAME=gateway
+      - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET:-your_super_secret_access_key}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-your_super_secret_refresh_key}
     ports:
       - '8080:8080'
+    depends_on:
+      - nats
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: infra/services/auth/Dockerfile
+    container_name: repo-auth
+    environment:
+      - NATS_URL=nats://nats:4222
+      - NATS_CLIENT_NAME=auth-service
+      - DATABASE_HOST=db
+      - DATABASE_PORT=5432
+      - DATABASE_USER=${DATABASE_USER:-postgres}
+      - DATABASE_PASSWORD=${DATABASE_PASSWORD:-password}
+      - DATABASE_NAME=${DATABASE_NAME:-repo}
+      - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET:-your_super_secret_access_key}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-your_super_secret_refresh_key}
+    depends_on:
+      - nats
+      - db
+
+  ws-service:
+    build:
+      context: .
+      dockerfile: infra/services/ws/Dockerfile
+    container_name: repo-ws
+    environment:
+      - NATS_URL=nats://nats:4222
+      - NATS_CLIENT_NAME=ws-service
+      - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET:-your_super_secret_access_key}
+      - SERVER_PORT=8081
+    ports:
+      - '8081:8081'
     depends_on:
       - nats
 

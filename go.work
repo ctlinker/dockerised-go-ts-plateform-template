@@ -7,4 +7,5 @@ use (
 	./infra/modules/utils-go
 	./infra/services/health
 	./infra/services/auth
+	./infra/services/ws
 )

@@ -1,0 +1,15 @@
+project:
+  stack: service
+
+dependsOn:
+  - nats-go
+  - utils-go
+  - db
+
+tasks:
+  build:
+    command: go build -o build/ws main.go
+    inputs:
+      - ./**/*.go
+  run:
+    command: go run main.go
