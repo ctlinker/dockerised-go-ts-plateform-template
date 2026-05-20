@@ -6,4 +6,5 @@ use (
 	./infra/modules/nats-go
 	./infra/modules/utils-go
 	./infra/services/health
+	./infra/services/auth
 )

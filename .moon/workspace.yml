@@ -6,6 +6,7 @@ projects:
   db: 'infra/database'
   gateway: 'infra/gateway'
   service-health: 'infra/services/health'
+  service-auth: 'infra/services/auth'
   nats-go: 'infra/modules/nats-go'
   utils-go: 'infra/modules/utils-go'
 
