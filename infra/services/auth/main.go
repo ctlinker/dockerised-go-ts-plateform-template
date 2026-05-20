@@ -31,6 +31,10 @@ type RefreshRequest struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
+type LogoutRequest struct {
+	AccessToken string `json:"access_token"`
+}
+
 type AuthResponse struct {
 	Success      bool   `json:"success"`
 	Message      string `json:"message"`
@@ -169,5 +173,16 @@ func setupHandlers(nc *natsgo.Client, db *database.DB, authConf env.AuthConfig) 
 			AccessToken:  newAccessToken,
 			RefreshToken: req.RefreshToken, // Keep using the same refresh token
 		}, nil
+	})
+
+	// Logout Handler
+	natsgo.Respond(nc, "auth.logout", "auth-service-group", func(ctx context.Context, req LogoutRequest) (AuthResponse, error) {
+		// Mark session as deleted based on access token
+		err := db.SoftDeleteSessionByTokenHash(ctx, req.AccessToken)
+		if err != nil {
+			return AuthResponse{Success: false, Message: "Failed to logout"}, err
+		}
+
+		return AuthResponse{Success: true, Message: "Logged out successfully"}, nil
 	})
 }

@@ -140,6 +140,28 @@ func main() {
 				"email":   email,
 			})
 		})
+
+		r.Post("/logout", func(w http.ResponseWriter, r *http.Request) {
+			// Extract token from header to identify the session
+			authHeader := r.Header.Get("Authorization")
+			tokenString := authHeader[7:]
+
+			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+			defer cancel()
+
+			req := struct {
+				AccessToken string `json:"access_token"`
+			}{AccessToken: tokenString}
+
+			resp, err := natsgo.Request[any, any](ctx, natsClient, "auth.logout", req)
+			if err != nil {
+				http.Error(w, "Auth service unavailable", http.StatusServiceUnavailable)
+				return
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(resp)
+		})
 	})
 
 	log.Println("Gateway starting on :8080")
