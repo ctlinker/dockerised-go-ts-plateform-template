@@ -1,4 +1,5 @@
-type: service
+project:
+  name: app-auth
 
 dependsOn:
   - nats-go
@@ -12,4 +13,3 @@ tasks:
       - ./**/*.go
   run:
     command: go run main.go
-    local: true

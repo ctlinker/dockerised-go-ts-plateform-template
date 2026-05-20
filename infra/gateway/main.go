@@ -54,6 +54,53 @@ func main() {
 		json.NewEncoder(w).Encode(resp)
 	})
 
+	r.Post("/register", func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Name     string `json:"name"`
+			Email    string `json:"email"`
+			Password string `json:"password"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+
+		resp, err := natsgo.Request[any, any](ctx, natsClient, "auth.register", req)
+		if err != nil {
+			http.Error(w, "Auth service unavailable", http.StatusServiceUnavailable)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	})
+
+	r.Post("/login", func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Email    string `json:"email"`
+			Password string `json:"password"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+
+		resp, err := natsgo.Request[any, any](ctx, natsClient, "auth.login", req)
+		if err != nil {
+			http.Error(w, "Auth service unavailable", http.StatusServiceUnavailable)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	})
+
 	log.Println("Gateway starting on :8080")
 	if err := http.ListenAndServe(":8080", r); err != nil {
 		log.Fatalf("Gateway failed to start: %v", err)
