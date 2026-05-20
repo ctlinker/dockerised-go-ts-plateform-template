@@ -13,3 +13,6 @@ tasks:
       - ./**/*.go
   run:
     command: go run main.go
+
+  start:
+    command: ./build/ws

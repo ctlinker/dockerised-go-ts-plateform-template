@@ -14,4 +14,4 @@ COPY . .
 RUN --mount=type=cache,target=/root/.cache/go-build \
     moon run service-ws:build
 
-CMD [ "moon", "run", "service-ws:run" ]
+CMD [ "moon", "run", "service-ws:start" ]

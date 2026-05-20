@@ -14,4 +14,4 @@ COPY . .
 RUN --mount=type=cache,target=/root/.cache/go-build \
     moon run service-auth:build
 
-CMD [ "moon", "run", "service-auth:run" ]
+CMD [ "moon", "run", "service-auth:start" ]
