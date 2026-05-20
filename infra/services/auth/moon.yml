@@ -15,4 +15,4 @@ tasks:
     command: go run main.go
 
   start:
-    command: ./build/auth
+    command: build/auth

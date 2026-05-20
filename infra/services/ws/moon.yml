@@ -15,4 +15,4 @@ tasks:
     command: go run main.go
 
   start:
-    command: ./build/ws
+    command: build/ws
