@@ -5,12 +5,14 @@ import (
 	"app-database/schema"
 	natsgo "app-nats-go"
 	"app-utils-go/env"
+	"app-utils-go/jwt"
 	"app-utils-go/password"
 	"context"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 )
 
 type RegisterRequest struct {
@@ -33,6 +35,7 @@ type AuthResponse struct {
 func main() {
 	// 1. Load Env & Connect to DB
 	dbConf := env.LoadDBConfig()
+	authConf := env.LoadAuthConfig()
 	db := database.Connect(dbConf)
 	defer db.Close()
 
@@ -44,7 +47,7 @@ func main() {
 	defer client.Close()
 
 	// 3. Register Handlers
-	setupHandlers(client, db)
+	setupHandlers(client, db, authConf)
 
 	log.Println("Auth service is running...")
 
@@ -56,7 +59,7 @@ func main() {
 	log.Println("Shutting down auth service")
 }
 
-func setupHandlers(nc *natsgo.Client, db *database.DB) {
+func setupHandlers(nc *natsgo.Client, db *database.DB, authConf env.AuthConfig) {
 	// Register Handler
 	natsgo.Respond(nc, "auth.register", "auth-service-group", func(ctx context.Context, req RegisterRequest) (AuthResponse, error) {
 		// Check if user exists
@@ -95,11 +98,17 @@ func setupHandlers(nc *natsgo.Client, db *database.DB) {
 			return AuthResponse{Success: false, Message: "Invalid credentials"}, nil
 		}
 
-		// TODO: Generate JWT
+		// Generate JWT
+		token, err := jwt.GenerateToken(user.ID, user.Email, authConf.JWT_ACCESS_SECRET, 24*time.Hour)
+		if err != nil {
+			log.Printf("Failed to generate token: %v", err)
+			return AuthResponse{Success: false, Message: "Internal error"}, err
+		}
+
 		return AuthResponse{
 			Success: true,
 			Message: "Logged in successfully",
-			Token:   "placeholder-jwt-token",
+			Token:   token,
 		}, nil
 	})
 }
